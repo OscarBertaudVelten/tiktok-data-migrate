@@ -4,7 +4,7 @@ import re
 import pyautogui
 
 # === CONSTANTES ===
-FICHIER_SOURCE = 'Favorite Videos - Copie.txt'
+FICHIER_SOURCE = 'Favorite Videos copy.txt'
 URL_PATTERN = r'https?://[^\s]+'
 TOLERANCE = 1
 TIMEOUT = 15
