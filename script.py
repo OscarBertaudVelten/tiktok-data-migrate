@@ -5,13 +5,14 @@ import pyautogui
 
 # === CONSTANTES ===
 FICHIER_SOURCE = 'Favorite Videos copy.txt'
+FICHIER_MANQUÉS = 'Missed Videos.txt'
 URL_PATTERN = r'https?://[^\s]+'
-TOLERANCE = 1
-TIMEOUT = 15
+TOLERANCE = 10
+TIMEOUT = 5
 
 POINTS_CLIC = [
-    {"coord": (1509, 804), "couleur": (231, 231, 231)},  # #e7e7e7
-    {"coord": (1510, 851), "couleur": (255, 255, 255)},  # #ffffff
+    {"coord": (1510, 804), "couleur": (231, 231, 231)},  # #e7e7e7
+    {"coord": (1510, 848), "couleur": (255, 255, 255)}   # #ffffff
 ]
 COULEUR_STOP = (250, 206, 21)  # #face15
 
@@ -26,20 +27,12 @@ def extraire_liens(lignes, pattern=URL_PATTERN):
     return [re.search(pattern, ligne).group() for ligne in lignes if re.search(pattern, ligne)]
 
 def supprimer_lien_et_date(lignes, lien, pattern=URL_PATTERN):
-    """Supprime la date (ligne précédente) et le lien du fichier."""
-    nouvelles_lignes = []
-    i = 0
-    lien_supprime = False
-    while i < len(lignes):
-        if not lien_supprime and re.search(pattern, lignes[i]) and lien in lignes[i]:
-            if i > 0:
-                del nouvelles_lignes[-1]  # Supprimer la date déjà ajoutée
-            lien_supprime = True
-            i += 1  # Sauter la ligne du lien
-        else:
-            nouvelles_lignes.append(lignes[i])
-        i += 1
-    return nouvelles_lignes
+    """Supprime le lien (souvent en dernière ligne) et la ligne précédente (date)."""
+    for i in range(len(lignes) - 1, -1, -1):
+        if re.search(pattern, lignes[i]) and lien in lignes[i]:
+            debut = max(0, i - 2)  # pour éviter d'aller avant la 1ère ligne
+            return lignes[:debut] + lignes[i+1:]
+    return lignes  # Aucun lien trouvé, on retourne les lignes inchangées
 
 def attendre_et_clic(timeout, points, couleur_stop):
     """Attend qu'un des points ait la bonne couleur, clique dessus, ou stoppe si couleur_stop détectée."""
@@ -51,13 +44,20 @@ def attendre_et_clic(timeout, points, couleur_stop):
             if couleur_proche(pixel_color, couleur_stop):
                 print(f"Couleur d'arrêt détectée à {point['coord']}, fermeture immédiate.")
                 return "stop"
-            if couleur_proche(pixel_color, point["couleur"]):
+            elif couleur_proche(pixel_color, point["couleur"]):
                 pyautogui.click(x=point["coord"][0], y=point["coord"][1])
                 print(f"Clic effectué à {point['coord']} (proche de {point['couleur']}).")
                 time.sleep(1)
                 return "clicked"
         time.sleep(0.5)
     return "timeout"
+
+
+def ajouter_lien_aux_manques(lien):
+    with open(FICHIER_MANQUÉS, 'a', encoding='utf-8') as f:
+        f.write(lien + '\n')
+    print(f"Lien ajouté à {FICHIER_MANQUÉS}.")
+
 
 def traiter_lien(lien, lignes):
     """Traite un lien : ferme l'onglet, ouvre le lien, attend/clic, supprime du fichier."""
@@ -71,6 +71,9 @@ def traiter_lien(lien, lignes):
     resultat = attendre_et_clic(TIMEOUT, POINTS_CLIC, COULEUR_STOP)
     if resultat == "timeout":
         print("Aucun pixel correspondant après attente, pas de clic.")
+        ajouter_lien_aux_manques(lien)
+        pyautogui.hotkey('ctrl', 'w')  # Fermer l'onglet si non déjà fermé
+        time.sleep(0.5)
 
     # Mise à jour du fichier
     nouvelles_lignes = supprimer_lien_et_date(lignes, lien)
@@ -87,6 +90,7 @@ def main():
         lignes = f.readlines()
 
     liens = extraire_liens(lignes)
+    liens.reverse()
     print(f"{len(liens)} liens trouvés. Début du traitement...")
 
     compteur = 0
